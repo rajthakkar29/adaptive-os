@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 from models.lstm_model import ContextLSTM
-from data.generate_data import generate_dataset
+from data.real_dataset import generate_real_dataset   # CHANGED
 
 # Model parameters
 INPUT_SIZE = 11
@@ -13,8 +13,8 @@ NUM_CLASSES = 3
 EPOCHS = 30
 LEARNING_RATE = 0.001
 
-# Generate dataset
-X, y_context, y_risk = generate_dataset(num_samples=1000)
+# Generate dataset (REAL DATA NOW)
+X, y_context, y_risk = generate_real_dataset()   # CHANGED
 
 # Initialize model
 model = ContextLSTM(INPUT_SIZE, HIDDEN_SIZE, NUM_CLASSES)
