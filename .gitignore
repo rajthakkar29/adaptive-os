@@ -1,6 +1,7 @@
 venv/
 __pycache__/
 *.pyc
+secure_folder/
 
 secret.key
 master.hash
