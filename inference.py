@@ -5,7 +5,7 @@ import numpy as np
 from models.lstm_model import ContextLSTM
 from telemetry.collector import collect_telemetry
 from telemetry.preprocess import preprocess
-from telemetry.logger import log_telemetry  # NEW IMPORT
+from telemetry.logger import log_telemetry   # ADDED
 from crypto_manager import lock_folder, red_tier_unlock, is_folder_unlocked
 from ui_display import show_status
 from wallpaper_manager import update_wallpaper
@@ -86,7 +86,6 @@ def calculate_anomaly_score(app_history):
         if normalize_app(app_history[i]) != normalize_app(app_history[i - 1]):
             switches += 1
 
-    # increased threshold so normal multitasking does not trigger anomaly
     if switches > 25:
         score += 0.15
 
@@ -136,7 +135,7 @@ while True:
 
     data = collect_telemetry()
 
-    log_telemetry(data)  # NEW LINE
+    log_telemetry(data)   # ADDED → saves behavior + system data
 
     vector = preprocess(data)
 
@@ -177,7 +176,6 @@ while True:
 
         tier = determine_tier(final_risk)
 
-        # warmup phase prevents system starting in Red
         if warmup_counter < WARMUP_CYCLES:
             warmup_counter += 1
             tier = "Green"
@@ -186,7 +184,6 @@ while True:
 
             current_tier = tier
 
-            # change wallpaper only when tier changes
             update_wallpaper(tier)
 
             if tier == "Red" and is_folder_unlocked():
