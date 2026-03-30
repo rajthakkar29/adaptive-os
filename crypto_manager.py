@@ -1,21 +1,46 @@
 import os
 import hashlib
 from cryptography.fernet import Fernet
-from getpass import getpass
+import tkinter as tk
+from tkinter import simpledialog, messagebox
 
 KEY_FILE = "secret.key"
 PASSWORD_FILE = "master.hash"
 TARGET_FOLDER = "secure_folder"
 
 
+# ---------------- UI INPUT ----------------
+def get_password_input(prompt):
+
+    root = tk.Tk()
+    root.attributes("-topmost", True)   # 🔥 always on top
+    root.withdraw()
+
+    password = simpledialog.askstring(
+        "Authentication",
+        prompt,
+        show="*",
+        parent=root
+    )
+
+    root.destroy()
+    return password
+
+
+# ---------------- PASSWORD ----------------
 def set_master_password():
-    password = getpass("Set master password: ")
+
+    password = get_password_input("Set master password:")
+
+    if not password:
+        return
+
     hashed = hashlib.sha256(password.encode()).hexdigest()
 
     with open(PASSWORD_FILE, "w") as f:
         f.write(hashed)
 
-    print("Master password set.")
+    messagebox.showinfo("Success", "Master password set.")
 
 
 def verify_password():
@@ -23,14 +48,18 @@ def verify_password():
     if not os.path.exists(PASSWORD_FILE):
         set_master_password()
 
-    password = getpass("Enter master password: ")
-    hashed_input = hashlib.sha256(password.encode()).hexdigest()
+    password = get_password_input("Enter master password:")
 
+    if password is None:
+        return False
+
+    hashed_input = hashlib.sha256(password.encode()).hexdigest()
     stored_hash = open(PASSWORD_FILE, "r").read()
 
     return hashed_input == stored_hash
 
 
+# ---------------- KEY ----------------
 def generate_key():
 
     key = Fernet.generate_key()
@@ -47,6 +76,7 @@ def load_key():
     return open(KEY_FILE, "rb").read()
 
 
+# ---------------- ENCRYPTION ----------------
 def encrypt_file(file_path, fernet):
 
     with open(file_path, "rb") as f:
@@ -68,11 +98,11 @@ def decrypt_file(file_path, fernet):
 
         with open(file_path, "wb") as f:
             f.write(decrypted)
-
     except:
         pass
 
 
+# ---------------- FOLDER ----------------
 def lock_folder():
 
     key = load_key()
@@ -103,36 +133,18 @@ def unlock_folder():
     print("Folder Unlocked")
 
 
-def is_folder_unlocked():
-
-    try:
-
-        for filename in os.listdir(TARGET_FOLDER):
-
-            file_path = os.path.join(TARGET_FOLDER, filename)
-
-            with open(file_path, "rb") as f:
-                data = f.read(50)
-
-            if b"gAAAA" in data:
-                return False
-
-        return True
-
-    except:
-        return False
-
-
+# ---------------- RED TIER ----------------
 def red_tier_unlock():
-
-    print("High Risk Detected")
 
     if verify_password():
 
         unlock_folder()
+        messagebox.showinfo("Access Granted", "Folder unlocked")
 
-        print("Access granted. Folder will remain unlocked.")
+        return True
 
     else:
 
-        print("Incorrect password. Try again.")
+        messagebox.showerror("Access Denied", "Incorrect password")
+
+        return False

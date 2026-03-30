@@ -3,50 +3,28 @@ import torch.nn as nn
 import torch.optim as optim
 
 from models.lstm_model import ContextLSTM
-from data.real_dataset import generate_real_dataset   # CHANGED
+from data.real_dataset import generate_real_dataset
 
-# Model parameters
-INPUT_SIZE = 11
-HIDDEN_SIZE = 32
-NUM_CLASSES = 3
+INPUT_SIZE = 14
+HIDDEN = 32
+CLASSES = 3
 
-EPOCHS = 30
-LEARNING_RATE = 0.001
+X, yc, yr = generate_real_dataset()
 
-# Generate dataset (REAL DATA NOW)
-X, y_context, y_risk = generate_real_dataset()   # CHANGED
+model = ContextLSTM(INPUT_SIZE, HIDDEN, CLASSES)
 
-# Initialize model
-model = ContextLSTM(INPUT_SIZE, HIDDEN_SIZE, NUM_CLASSES)
+opt = optim.Adam(model.parameters(), lr=0.001)
 
-# Loss functions
-criterion_context = nn.CrossEntropyLoss()
-criterion_risk = nn.MSELoss()
+for e in range(30):
+    opt.zero_grad()
 
-optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    cp, rp = model(X)
 
-# Training loop
-for epoch in range(EPOCHS):
-
-    model.train()
-    optimizer.zero_grad()
-
-    context_pred, risk_pred = model(X)
-
-    loss_context = criterion_context(context_pred, y_context)
-    loss_risk = criterion_risk(risk_pred, y_risk)
-
-    loss = loss_context + loss_risk
+    loss = nn.CrossEntropyLoss()(cp, yc) + nn.MSELoss()(rp, yr)
 
     loss.backward()
-    optimizer.step()
+    opt.step()
 
-    print(f"Epoch {epoch+1}/{EPOCHS} | "
-          f"Total Loss: {loss.item():.4f} | "
-          f"Context Loss: {loss_context.item():.4f} | "
-          f"Risk Loss: {loss_risk.item():.4f}")
+    print(e, loss.item())
 
-# Save trained model
 torch.save(model.state_dict(), "context_model.pth")
-
-print("Training complete. Model saved as context_model.pth")

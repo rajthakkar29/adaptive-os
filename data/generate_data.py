@@ -1,55 +1,43 @@
-import numpy as np
 import torch
+import numpy as np
 
-SEQUENCE_LENGTH = 20
-FEATURE_SIZE = 11  
-NUM_CLASSES = 3
 
-def generate_sequence(mode):
-    sequence = []
+def generate_dataset(num_samples=1000, seq_length=10):
 
-    for _ in range(SEQUENCE_LENGTH):
-        cpu = np.random.uniform(0.1, 0.3)
-        hour = np.random.uniform(0.3, 0.6)
-
-        if mode == 0:  # Dev Mode
-            app = [1, 0, 0, 0, 0, 0]
-            risk = 0.2
-        elif mode == 1:  # Browsing Mode
-            app = [0, 1, 0, 0, 0, 0]
-            risk = 0.4
-        else:  # Gaming Mode
-            app = [0, 0, 1, 0, 0, 0]
-            risk = 0.6
-
-        network = [0, 1, 0]  # assume safe network for now
-
-        feature_vector = [cpu, hour] + app + network
-        sequence.append(feature_vector)
-
-    return np.array(sequence), mode, risk
-
-def generate_dataset(num_samples=500):
     X = []
     y_context = []
     y_risk = []
 
     for _ in range(num_samples):
-        mode = np.random.randint(0, NUM_CLASSES)
-        seq, context_label, risk_value = generate_sequence(mode)
 
-        X.append(seq)
-        y_context.append(context_label)
-        y_risk.append(risk_value)
+        sequence = []
+
+        for _ in range(seq_length):
+
+            cpu = np.random.rand()
+            hour = np.random.rand()
+
+            typing = np.random.uniform(0, 1)
+            click = np.random.uniform(0, 1)
+
+            app = np.random.randint(0, 6)
+            app_onehot = [0]*6
+            app_onehot[app] = 1
+
+            net = np.random.randint(0, 3)
+            net_onehot = [0]*3
+            net_onehot[net] = 1
+
+            feature = [cpu, hour, typing, click] + app_onehot + net_onehot
+            sequence.append(feature)
+
+        X.append(sequence)
+
+        y_context.append(np.random.randint(0, 3))
+        y_risk.append(np.random.rand())
 
     return (
         torch.tensor(X, dtype=torch.float32),
         torch.tensor(y_context, dtype=torch.long),
         torch.tensor(y_risk, dtype=torch.float32).unsqueeze(1)
     )
-
-if __name__ == "__main__":
-    X, y_context, y_risk = generate_dataset()
-    print("X shape:", X.shape)
-    print("Context labels shape:", y_context.shape)
-    print("Risk shape:", y_risk.shape)

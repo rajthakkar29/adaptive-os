@@ -1,91 +1,48 @@
 import json
-import torch
 import numpy as np
+import torch
 from telemetry.preprocess import preprocess
 
-LOG_FILE = "telemetry_logs.json"
-SEQUENCE_LENGTH = 10
+SEQ = 10
 
 
-def load_logs():
-    with open(LOG_FILE, "r") as f:
+def load():
+    with open("telemetry_logs.json") as f:
         return json.load(f)
 
 
-def create_sequences(logs):
-
-    sequences = []
-
-    for i in range(len(logs) - SEQUENCE_LENGTH):
-
-        seq = []
-
-        for j in range(SEQUENCE_LENGTH):
-
-            data = logs[i + j]
-
-            telemetry = {
-                "cpu": data["cpu"],
-                "hour": data["hour"],
-                "active_app": data["active_app"],
-                "network": data["network"]
-            }
-
-            vector = preprocess(telemetry)
-            seq.append(vector)
-
-        sequences.append(seq)
-
-    return np.array(sequences)
+def sequences(data):
+    return [data[i:i+SEQ] for i in range(len(data)-SEQ)]
 
 
-def assign_labels(sequences):
+def label(seq):
+    t = np.mean([x.get("typing_speed", 0) for x in seq])
+    c = np.mean([x.get("click_rate", 0) for x in seq])
 
-    y_context = []
-    y_risk = []
-
-    for seq in sequences:
-
-        avg_cpu = np.mean(seq[:, 0])
-
-        if avg_cpu < 0.2:
-            context = 0
-            risk = 0.2
-
-        elif avg_cpu < 0.4:
-            context = 1
-            risk = 0.4
-
-        else:
-            context = 2
-            risk = 0.6
-
-        y_context.append(context)
-        y_risk.append(risk)
-
-    return (
-        torch.tensor(y_context, dtype=torch.long),
-        torch.tensor(y_risk, dtype=torch.float32).unsqueeze(1)
-    )
+    if t > 7 or c > 10:
+        return 2, 0.9
+    elif t >4 or c > 6:
+        return 1, 0.6
+    elif t>1 or c>2:
+        return 0, 0.3
+    else:
+        return 0, 0.1
 
 
 def generate_real_dataset():
+    raw = load()
+    seqs = sequences(raw)
 
-    logs = load_logs()
+    X, yc, yr = [], [], []
 
-    sequences = create_sequences(logs)
+    for s in seqs:
+        X.append([preprocess(x) for x in s])
+        c, r = label(s)
+        yc.append(c)
+        yr.append([r])
 
-    y_context, y_risk = assign_labels(sequences)
-
-    X = torch.tensor(sequences, dtype=torch.float32)
-
-    return X, y_context, y_risk
-
-
-if __name__ == "__main__":
-
-    X, y_context, y_risk = generate_real_dataset()
-
-    print("X shape:", X.shape)
-    print("Context shape:", y_context.shape)
-    print("Risk shape:", y_risk.shape)
+    return (
+        torch.tensor(np.array(X), dtype=torch.float32),
+        torch.tensor(yc, dtype=torch.long),
+        torch.tensor(yr, dtype=torch.float32)
+    )

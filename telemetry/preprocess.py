@@ -1,26 +1,46 @@
 import numpy as np
 
-APP_CATEGORIES = ["Code.exe","chrome.exe","steam.exe","steamwebhelper.exe","explorer.exe","Unknown"]
-NETWORK_CATEGORIES = ["VITC-HOS2-4", "Raj's S25", "Unknown"]
+APP_CATEGORIES = [
+    "Code.exe",
+    "chrome.exe",
+    "steam.exe",
+    "steamwebhelper.exe",
+    "explorer.exe",
+    "Notepad.exe",
+    "Unknown"
+]
+
+NETWORK_CATEGORIES = [
+    "VITC-HOS2-4",
+    "Raj's S25",
+    "Unknown"
+]
+
 
 def one_hot_encode(value, categories):
     vector = [0] * len(categories)
+
     if value in categories:
         index = categories.index(value)
     else:
         index = categories.index("Unknown")
+
     vector[index] = 1
     return vector
 
+
 def normalize(value, max_value):
-    return value / max_value
+    return min(value / max_value, 1.0)
 
-def preprocess(telemetry):
-    cpu = normalize(telemetry["cpu"], 100)
-    hour = normalize(telemetry["hour"], 23)
 
-    app_encoded = one_hot_encode(telemetry["active_app"], APP_CATEGORIES)
-    network_encoded = one_hot_encode(telemetry["network"], NETWORK_CATEGORIES)
+def preprocess(data):
+    cpu = normalize(data["cpu"], 100)
+    hour = normalize(data["hour"], 23)
 
-    feature_vector = [cpu, hour] + app_encoded + network_encoded
-    return np.array(feature_vector)
+    typing = normalize(data.get("typing_speed", 0), 10)
+    clicks = normalize(data.get("click_rate", 0), 10)
+
+    app = one_hot_encode(data["active_app"], APP_CATEGORIES)
+    network = one_hot_encode(data["network"], NETWORK_CATEGORIES)
+
+    return np.array([cpu, hour, typing, clicks] + app + network)

@@ -5,198 +5,167 @@ import numpy as np
 from models.lstm_model import ContextLSTM
 from telemetry.collector import collect_telemetry
 from telemetry.preprocess import preprocess
-from telemetry.logger import log_telemetry   # ADDED
-from crypto_manager import lock_folder, red_tier_unlock, is_folder_unlocked
-from ui_display import show_status
 from wallpaper_manager import update_wallpaper
+from crypto_manager import lock_folder, red_tier_unlock
 
-INPUT_SIZE = 11
-HIDDEN_SIZE = 32
-NUM_CLASSES = 3
-SEQUENCE_LENGTH = 10
+INPUT_SIZE = 14
+SEQ = 10
 
-TRUSTED_NETWORKS = [
-    "VITC-HOS2-4",
-    "Raj's S25"
-]
+TRUSTED_NETWORKS = ["VITC-HOS2-4", "Raj's S25"]
 
-# warmup cycles to stabilize predictions
-WARMUP_CYCLES = 5
-warmup_counter = 0
-
-model = ContextLSTM(INPUT_SIZE, HIDDEN_SIZE, NUM_CLASSES)
+model = ContextLSTM(INPUT_SIZE, 32, 3)
 model.load_state_dict(torch.load("context_model.pth"))
 model.eval()
 
-sequence_buffer = []
-app_history = []
+buffer = []
+prev_risk = 0.3
 current_tier = None
 
-# ensure system starts visually in Green state
-update_wallpaper("Green")
+# 🔐 SECURITY STATE
+is_locked = False
+last_prompt_time = 0
+PROMPT_INTERVAL = 10
+
+unlock_hold_until = 0
+HOLD_DURATION = 8
 
 
-def normalize_app(app_name):
-
-    if app_name in ["steam.exe", "steamwebhelper.exe"]:
-        return "gaming"
-
-    elif app_name == "Code.exe":
-        return "dev"
-
-    elif app_name == "chrome.exe":
-        return "browse"
-
-    else:
-        return "idle"
-
-
-def resolve_mode(app_history):
-
-    counts = {"dev": 0, "browse": 0, "gaming": 0}
-
-    for app in app_history:
-
-        normalized = normalize_app(app)
-
-        if normalized in counts:
-            counts[normalized] += 1
-
-    if counts["gaming"] > counts["dev"] and counts["gaming"] > counts["browse"]:
-        return "Gaming"
-
-    recent = app_history[-5:]
-
-    if any(normalize_app(app) == "dev" for app in recent):
+# ---------------- MODE ----------------
+def get_mode(app):
+    if app == "Code.exe":
         return "Dev"
-
-    if counts["browse"] > 0:
+    elif app == "chrome.exe":
         return "Browsing"
-
-    return "Idle"
-
-
-def calculate_anomaly_score(app_history):
-
-    score = 0.0
-    switches = 0
-
-    for i in range(1, len(app_history)):
-
-        if normalize_app(app_history[i]) != normalize_app(app_history[i - 1]):
-            switches += 1
-
-    if switches > 25:
-        score += 0.15
-
-    return score
+    elif app in ["steam.exe", "steamwebhelper.exe"]:
+        return "Gaming"
+    else:
+        return "Idle"
 
 
-def calculate_final_risk(base_risk, mode, network, hour, anomaly_score):
+# ---------------- BEHAVIOR ----------------
+def behavior_adjustment(risk, typing, clicks):
 
-    risk = base_risk
-
-    if network and network not in TRUSTED_NETWORKS:
-        risk += 0.2
-
-    if 0 <= hour <= 5:
-        risk += 0.1
-
-    if mode == "Gaming":
-        risk += 0.1
-
-    elif mode == "Dev":
+    if typing < 0.5 and clicks < 0.5:
         risk -= 0.15
 
+    elif typing < 2 and clicks < 2:
+        risk -= 0.05
+
+    elif typing > 8 or clicks > 10:
+        risk += 0.35
+
+    elif typing > 5 or clicks > 6:
+        risk += 0.2
+
+    return risk
+
+
+# ---------------- MODE ----------------
+def mode_adjustment(risk, mode):
+
+    if mode == "Dev":
+        risk -= 0.15
+    elif mode == "Browsing":
+        risk += 0.05
+    elif mode == "Gaming":
+        risk += 0.12
     elif mode == "Idle":
         risk -= 0.10
 
-    risk += anomaly_score
-
-    if risk < 0.5:
-        risk *= 0.95
-
-    return max(0.0, min(1.0, risk))
+    return risk
 
 
-def determine_tier(risk):
+# ---------------- NETWORK ----------------
+def network_adjustment(risk, network):
 
-    if risk < 0.35:
-        return "Green"
-
-    elif risk < 0.5:
-        return "Yellow"
-
+    if network and network not in TRUSTED_NETWORKS:
+        risk += 0.15
     else:
-        return "Red"
+        risk -= 0.05
+
+    return risk
+
+
+# ---------------- INIT ----------------
+update_wallpaper("Green")
 
 
 while True:
 
     data = collect_telemetry()
+    vec = preprocess(data)
 
-    log_telemetry(data)   # ADDED → saves behavior + system data
+    buffer.append(vec)
 
-    vector = preprocess(data)
+    if len(buffer) > SEQ:
+        buffer.pop(0)
 
-    sequence_buffer.append(vector)
-    app_history.append(data["active_app"])
+    if len(buffer) == SEQ:
 
-    if len(sequence_buffer) > SEQUENCE_LENGTH:
-        sequence_buffer.pop(0)
-
-    if len(app_history) > SEQUENCE_LENGTH:
-        app_history.pop(0)
-
-    print("Collecting context:", len(sequence_buffer), "/", SEQUENCE_LENGTH)
-
-    if len(sequence_buffer) == SEQUENCE_LENGTH:
-
-        input_seq = torch.tensor(
-            np.array(sequence_buffer),
-            dtype=torch.float32
-        ).unsqueeze(0)
+        inp = torch.tensor(np.array(buffer), dtype=torch.float32).unsqueeze(0)
 
         with torch.no_grad():
-            _, risk_pred = model(input_seq)
+            _, r = model(inp)
 
-        base_risk = risk_pred.item()
+        base_risk = r.item()
 
-        mode = resolve_mode(app_history)
+        # pipeline
+        risk = base_risk
 
-        anomaly_score = calculate_anomaly_score(app_history)
-
-        final_risk = calculate_final_risk(
-            base_risk,
-            mode,
-            data["network"],
-            data["hour"],
-            anomaly_score
+        risk = behavior_adjustment(
+            risk,
+            data["typing_speed"],
+            data["click_rate"]
         )
 
-        tier = determine_tier(final_risk)
+        mode = get_mode(data["active_app"])
+        risk = mode_adjustment(risk, mode)
 
-        if warmup_counter < WARMUP_CYCLES:
-            warmup_counter += 1
-            tier = "Green"
+        risk = network_adjustment(risk, data["network"])
 
+        risk = max(0.0, min(1.0, risk))
+
+        final = 0.5 * prev_risk + 0.5 * risk
+        prev_risk = final
+
+        # ---------------- TIER ----------------
+        if time.time() < unlock_hold_until:
+            tier = "Yellow"
+        else:
+            if final < 0.35:
+                tier = "Green"
+            elif final < 0.5:
+                tier = "Yellow"
+            else:
+                tier = "Red"
+
+        # ---------------- SECURITY (STATE BASED) ----------------
+        if tier == "Red" and not is_locked:
+            is_locked = True
+            lock_folder()
+
+        if is_locked:
+
+            tier = "Red"  # force
+
+            if time.time() - last_prompt_time > PROMPT_INTERVAL:
+
+                success = red_tier_unlock()
+                last_prompt_time = time.time()
+
+                if success:
+                    is_locked = False
+                    unlock_hold_until = time.time() + HOLD_DURATION
+
+        # ---------------- WALLPAPER ----------------
         if tier != current_tier:
-
             current_tier = tier
-
             update_wallpaper(tier)
 
-            if tier == "Red" and is_folder_unlocked():
-                lock_folder()
-
-        if tier == "Red" and not is_folder_unlocked():
-            red_tier_unlock()
-
-        show_status(
-            mode,
-            final_risk,
-            tier,
-            not is_folder_unlocked()
+        print(
+            f"Risk: {final:.3f} | Tier: {tier} | "
+            f"Mode: {mode} | Net: {data['network']} | "
+            f"T:{data['typing_speed']:.2f} C:{data['click_rate']:.2f}"
         )
 
     time.sleep(2)
