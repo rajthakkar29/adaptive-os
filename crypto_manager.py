@@ -13,7 +13,7 @@ TARGET_FOLDER = "secure_folder"
 def get_password_input(prompt):
 
     root = tk.Tk()
-    root.attributes("-topmost", True)   # 🔥 always on top
+    root.attributes("-topmost", True)  
     root.withdraw()
 
     password = simpledialog.askstring(
