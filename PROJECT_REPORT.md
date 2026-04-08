@@ -135,25 +135,25 @@ If you want screenshots from the actual runtime, capture the console output and 
 
 Figure 1. Adaptive-OS System Architecture
 
-![Adaptive-OS System Architecture](report_diagrams/01_architecture.png)
+![Adaptive-OS System Architecture](report_diagrams/Architecture_Diagram.png)
 
 ### Runtime Flow Diagram
 
 Figure 2. Adaptive-OS Runtime Decision Flow
 
-![Adaptive-OS Runtime Decision Flow](report_diagrams/02_runtime_flow.png)
+![Adaptive-OS Runtime Decision Flow](report_diagrams/Runtime_Flow_Diagram.png)
 
 ### Security State Machine
 
 Figure 3. Adaptive-OS Security State Machine
 
-![Adaptive-OS Security State Machine](report_diagrams/03_state_machine.png)
+![Adaptive-OS Security State Machine](report_diagrams/Security_State_Machine.png)
 
 ### Training Pipeline
 
 Figure 4. Adaptive-OS Training Pipeline
 
-![Adaptive-OS Training Pipeline](report_diagrams/04_training_pipeline.png)
+![Adaptive-OS Training Pipeline](report_diagrams/Training_Pipeline.png)
 
 ## 7. Performance Analysis / Discussion
 
