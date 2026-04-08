@@ -125,28 +125,33 @@ First, the runtime loop in [inference.py](inference.py) prints the current risk,
 
 Second, the system changes the wallpaper based on the tier using [wallpaper_manager.py](wallpaper_manager.py), which gives a visible status signal.
 
-For the report, you can use the generated diagram assets in [report_diagrams](report_diagrams). The files created are:
+For this report, the generated diagrams are included as figures from [report_diagrams](report_diagrams). They can be referenced in the document as Figure 1 through Figure 4.
 
-- [01_architecture.png](report_diagrams/01_architecture.png)
-- [02_runtime_flow.png](report_diagrams/02_runtime_flow.png)
-- [03_state_machine.png](report_diagrams/03_state_machine.png)
-- [04_training_pipeline.png](report_diagrams/04_training_pipeline.png)
+Figure 1 shows the overall system architecture, Figure 2 shows the runtime decision flow, Figure 3 shows the security state machine, and Figure 4 shows the training pipeline.
 
 If you want screenshots from the actual runtime, capture the console output and wallpaper changes while `inference.py` is running, then place them beside these graphs.
 
 ### Architecture Diagram
 
+Figure 1. Adaptive-OS System Architecture
+
 ![Adaptive-OS System Architecture](report_diagrams/01_architecture.png)
 
 ### Runtime Flow Diagram
+
+Figure 2. Adaptive-OS Runtime Decision Flow
 
 ![Adaptive-OS Runtime Decision Flow](report_diagrams/02_runtime_flow.png)
 
 ### Security State Machine
 
+Figure 3. Adaptive-OS Security State Machine
+
 ![Adaptive-OS Security State Machine](report_diagrams/03_state_machine.png)
 
 ### Training Pipeline
+
+Figure 4. Adaptive-OS Training Pipeline
 
 ![Adaptive-OS Training Pipeline](report_diagrams/04_training_pipeline.png)
 
@@ -191,4 +196,4 @@ The main source files used in this project are:
 - [telemetry/preprocess.py](telemetry/preprocess.py)
 - [telemetry/logger.py](telemetry/logger.py)
 
-The report diagrams were generated using [make_report_diagrams.py](make_report_diagrams.py), and the output images are stored in [report_diagrams](report_diagrams).
+Report images are stored in [report_diagrams](report_diagrams).
