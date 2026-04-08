@@ -1,111 +1,194 @@
 # Adaptive-OS Project Report
 
-## Executive Summary
+## 1. Project Title
 
-Adaptive-OS is a proof-of-concept for a context-aware security system that uses live telemetry, a sequence model, and simple security actions to adapt the system state in real time. The core idea is strong: it tries to infer risk from user behavior and machine context, then respond by changing the wallpaper, locking a secure folder, and asking for a password when risk becomes high.
+Adaptive-OS: Context-Aware Security Monitoring and Adaptive Folder Protection Using Deep Learning
 
-The project’s biggest strength is its end-to-end concept. It connects telemetry collection, preprocessing, model inference, and security enforcement in one pipeline. The biggest weakness is that several pieces are either incomplete, tightly coupled to Windows, or not wired together cleanly enough for reliable day-to-day use. In its current form, it reads more like an ambitious prototype than a production-ready security tool.
+## 2. Problem Statement and Objective
 
-## What The Project Is Trying To Do
+The project addresses the problem of adapting security behavior based on live user and system context. Traditional static security tools apply the same policy regardless of whether a user is actively coding, browsing, gaming, or idle. That can create either unnecessary friction or weak protection.
 
-The repository implements an adaptive security monitor. At a high level, it observes the user’s behavior and system state, converts that into a feature sequence, runs the sequence through an LSTM model, and computes a risk score. Based on that score, it chooses one of three security tiers: Green, Yellow, or Red.
+The objective of Adaptive-OS is to observe behavioral and system telemetry in real time, infer a risk score with a deep learning model, and use that score to trigger adaptive responses. The response layer changes the wallpaper as a status signal and locks or unlocks a protected folder when risk becomes high.
 
-That decision then drives visible and protective responses:
+## 3. Selected Deep Learning Approach
 
-- The wallpaper is updated to match the current tier in [wallpaper_manager.py](wallpaper_manager.py).
-- The secure folder is encrypted when risk becomes Red in [crypto_manager.py](crypto_manager.py) and [inference.py](inference.py).
-- A password prompt is shown when the system is in Red and an unlock is attempted in [crypto_manager.py](crypto_manager.py).
+The selected deep learning approach is a Long Short-Term Memory network, implemented as `ContextLSTM` in [models/lstm_model.py](models/lstm_model.py). This choice fits the problem because security risk depends on patterns over time, not just on one isolated measurement.
 
-## Architecture Overview
+The model has two outputs:
 
-The project is split into a few clear layers.
+- A 3-class context prediction.
+- A continuous risk prediction between 0 and 1.
 
-The model layer is in [models/lstm_model.py](models/lstm_model.py). It defines a `ContextLSTM` that outputs both a context classification and a risk score.
+This dual-output design lets the system represent both the current context and the estimated threat level.
 
-The training path is in [train.py](train.py) and [data/real_dataset.py](data/real_dataset.py). Training loads telemetry logs, slices them into sequences, generates labels from typing and click behavior, trains the model, and saves a `context_model.pth` checkpoint.
+## 4. Dataset Description
 
-The runtime inference path is in [inference.py](inference.py). It collects telemetry, preprocesses it, feeds a rolling sequence of 10 samples into the model, smooths and adjusts the resulting risk score, then triggers tier changes and security actions.
+The project uses telemetry logs stored in `telemetry_logs.json`, which are loaded in [data/real_dataset.py](data/real_dataset.py). The dataset is formed by slicing the logs into 10-step sequences and converting each record into a 14-feature vector using [telemetry/preprocess.py](telemetry/preprocess.py).
 
-Telemetry is collected in [telemetry/collector.py](telemetry/collector.py) and normalized in [telemetry/preprocess.py](telemetry/preprocess.py). Logging support exists in [telemetry/logger.py](telemetry/logger.py), but it is not integrated into the main inference loop.
+The feature set includes:
 
-The security implementation is handled by [crypto_manager.py](crypto_manager.py) and [auth_manager.py](auth_manager.py). UI feedback is split between [ui_display.py](ui_display.py) for console output and [wallpaper_manager.py](wallpaper_manager.py) for visual tier signaling.
+- CPU usage
+- Hour of day
+- Typing speed
+- Click rate
+- One-hot encoded active application category
+- One-hot encoded network category
 
-## Strengths
+The labels are generated heuristically from the average typing and click behavior of each sequence. That means the dataset is semi-synthetic at the label level, because it uses rule-based labels rather than manually verified ground truth.
 
-The project has a clear and interesting design goal. It is not just collecting data or just training a model; it tries to close the loop between behavior observation and automated protection. That makes the architecture more compelling than a typical demo that stops at inference.
+## 5. Methodology
 
-The model design is also sensible for the problem. Using an LSTM in [models/lstm_model.py](models/lstm_model.py) matches the idea that risk should depend on behavior over time rather than only a single snapshot.
+### 5.1 Data Preprocessing Steps
 
-The security tier idea is easy to understand. Green, Yellow, and Red provide a simple mental model, and the code in [inference.py](inference.py) uses that tiering to create concrete responses rather than only printing a score.
+The preprocessing pipeline in [telemetry/preprocess.py](telemetry/preprocess.py) performs the following steps:
 
-The project also has a modular directory structure. Telemetry, data preparation, model code, security code, and UI feedback are separated into different files, which is a good foundation for future cleanup.
+1. CPU and hour values are normalized to the range 0 to 1.
+2. Typing speed and click rate are normalized.
+3. The active application is converted into a one-hot vector.
+4. The network name is converted into a one-hot vector.
+5. The final feature vector is assembled into a 14-dimensional array.
 
-## Weaknesses
+During inference, the system buffers 10 consecutive feature vectors before sending them to the model in [inference.py](inference.py).
 
-The most serious weakness is integration quality. The project has the right components, but several of them do not connect cleanly.
+### 5.2 Model Architecture
 
-There is a clear bug in the authentication path. [auth_manager.py](auth_manager.py) imports `decrypt_folder`, but [crypto_manager.py](crypto_manager.py) defines `unlock_folder` instead. That means the authentication module will fail as written.
+The architecture in [models/lstm_model.py](models/lstm_model.py) is compact and suitable for sequence classification:
 
-The telemetry and UI code also appear partially unused. [telemetry/logger.py](telemetry/logger.py) defines a logging pipeline, but nothing in [inference.py](inference.py) calls it. Likewise, [ui_display.py](ui_display.py) defines a status table, but the live inference loop prints directly to the console instead.
+- Input: 14 features per time step
+- Recurrent layer: LSTM with 32 hidden units
+- Output head 1: Linear layer + Softmax for context classification
+- Output head 2: Linear layer + Sigmoid for risk estimation
 
-There is no dependency manifest in the repository. I did not find a `requirements.txt` or equivalent file, so reproducing the environment requires guessing the package set.
+This structure allows the model to learn temporal dependencies and produce both categorical and continuous outputs.
 
-## Major Upsides
+### 5.3 Tools and Technologies Used
 
-The strongest upside is the concept itself. The repository combines behavioral telemetry, contextual inference, and an active response layer. That is a valid and interesting direction for adaptive security.
+The main tools and technologies used in the project are:
 
-Another upside is the separation between training and inference. [train.py](train.py) and [inference.py](inference.py) are distinct, which makes the project easier to reason about than a single monolithic script.
+- Python
+- PyTorch for model training and inference
+- NumPy for array handling
+- psutil for system telemetry
+- pynput for keyboard and mouse monitoring
+- cryptography for folder encryption
+- tkinter for password prompts
+- rich for console-based status display
+- Matplotlib for diagram generation in the report
 
-The use of visible tier feedback is also practical for a demo. Wallpaper changes are immediate and obvious, so the system’s state is easy to observe without reading logs.
+The codebase is organized into separate modules for model logic, telemetry, security, and UI support.
 
-## Major Downsides
+### 5.4 Training Procedure
 
-The biggest downside is portability. [telemetry/collector.py](telemetry/collector.py) depends on Windows-specific APIs for active process detection and network lookup, and [wallpaper_manager.py](wallpaper_manager.py) uses `ctypes.windll`, which is also Windows-specific. On macOS, the project is not expected to run correctly without platform-specific replacements.
+The training routine in [train.py](train.py) follows this sequence:
 
-Another downside is the amount of hardcoded state. Trusted networks are hardcoded in [inference.py](inference.py), the model checkpoint path is hardcoded, the unlock timing is fixed, and the password hash placeholder in [auth_manager.py](auth_manager.py) is not set up for real use.
+1. Load the dataset from [data/real_dataset.py](data/real_dataset.py).
+2. Build the `ContextLSTM` model.
+3. Use Adam optimization.
+4. Train for 30 epochs.
+5. Optimize with a combined loss:
+   - Cross-entropy for context prediction
+   - Mean squared error for risk prediction
+6. Save the trained weights to `context_model.pth`.
 
-The security implementation is also brittle. [crypto_manager.py](crypto_manager.py) stores the encryption key locally, encrypts files directly in place, and suppresses decryption errors with a bare `except`. That is acceptable for a prototype, but it is not robust enough for a real security product.
+### 5.5 Hyperparameter Settings
 
-## Technical Risks And Gaps
+The project uses the following main hyperparameters and fixed settings:
 
-The telemetry pipeline is fragile. [telemetry/collector.py](telemetry/collector.py) starts keyboard and mouse listeners at import time, which creates side effects before the rest of the application is ready. That is risky for debugging and reuse.
+| Setting | Value |
+|---|---:|
+| Input size | 14 |
+| Sequence length | 10 |
+| Hidden size | 32 |
+| Number of context classes | 3 |
+| Training epochs | 30 |
+| Optimizer | Adam |
+| Learning rate | 0.001 |
+| Security prompt interval | 10 seconds |
+| Unlock hold duration | 8 seconds |
 
-The training data path is also weak. [data/real_dataset.py](data/real_dataset.py) derives labels from heuristics based on typing and click averages, which means the model is learning from rule-based pseudo-labels rather than verified ground truth. That limits how trustworthy the resulting model can be.
+Some threshold values are also hardcoded in [inference.py](inference.py), including the Green/Yellow/Red tier boundaries and heuristic risk adjustments.
 
-The inference loop is tightly coupled to runtime behavior. [inference.py](inference.py) continuously runs, adjusts risk with a few hand-written heuristics, and locks or unlocks the secure folder immediately. There is little separation between model logic, policy logic, and OS action logic.
+### 5.6 Evaluation Metrics
 
-There is also no visible testing layer. I did not find unit tests, integration tests, or a setup script. That makes regression risk much higher when any file changes.
+The project uses two main learning objectives:
 
-## File-By-File Assessment
+- Cross-entropy loss for the context classification output.
+- Mean squared error for the continuous risk output.
 
-[models/lstm_model.py](models/lstm_model.py) is the cleanest piece of the project. The model is small, understandable, and appropriate for a prototype.
+For the runtime system, the practical evaluation metric is whether the risk score transitions into the correct security tier and whether the folder lock/unlock behavior matches the inferred risk.
 
-[train.py](train.py) is straightforward, but it assumes the dataset already exists and the model can be trained without validation or evaluation reporting.
+## 6. Results and Output Screenshots / Graphs
 
-[inference.py](inference.py) is the most important file and also the most fragile. It does the real work, but it combines model loading, telemetry collection, tier selection, security actions, and output formatting in one loop.
+The project produces visible outputs in two forms.
 
-[telemetry/collector.py](telemetry/collector.py) contains useful ideas, but it is strongly tied to a Windows environment.
+First, the runtime loop in [inference.py](inference.py) prints the current risk, tier, active mode, network name, typing speed, and click rate.
 
-[telemetry/preprocess.py](telemetry/preprocess.py) is simple and readable, though its category lists are fixed and limited.
+Second, the system changes the wallpaper based on the tier using [wallpaper_manager.py](wallpaper_manager.py), which gives a visible status signal.
 
-[telemetry/logger.py](telemetry/logger.py) is useful in principle, but currently looks like a supporting module waiting to be connected.
+For the report, you can use the generated diagram assets in [report_diagrams](report_diagrams). The files created are:
 
-[crypto_manager.py](crypto_manager.py) is the central security module, but it needs better error handling and a clearer key-management story.
+- [01_architecture.png](report_diagrams/01_architecture.png)
+- [02_runtime_flow.png](report_diagrams/02_runtime_flow.png)
+- [03_state_machine.png](report_diagrams/03_state_machine.png)
+- [04_training_pipeline.png](report_diagrams/04_training_pipeline.png)
 
-[auth_manager.py](auth_manager.py) currently looks incomplete because of the import mismatch and the placeholder password hash.
+If you want screenshots from the actual runtime, capture the console output and wallpaper changes while `inference.py` is running, then place them beside these graphs.
 
-[wallpaper_manager.py](wallpaper_manager.py) is fine as a demo effect, but it should be treated as a Windows-only feature.
+### Architecture Diagram
 
-## Overall Verdict
+![Adaptive-OS System Architecture](report_diagrams/01_architecture.png)
 
-Adaptive-OS is a strong concept with a real prototype shape, but it is not yet a dependable application. The upside is the architecture: it has a meaningful end-to-end story, a temporal model, and a visible response system. The downside is implementation maturity: platform lock-in, hardcoded values, missing wiring, and a few concrete bugs prevent it from being robust.
+### Runtime Flow Diagram
 
-If this is being presented as a project report, the honest conclusion is that the project demonstrates a good design direction and a working prototype path, but it still needs cleanup, portability work, testing, and integration fixes before it can be considered production-ready.
+![Adaptive-OS Runtime Decision Flow](report_diagrams/02_runtime_flow.png)
 
-## Recommended Next Steps
+### Security State Machine
 
-1. Fix the crypto/auth mismatch in [auth_manager.py](auth_manager.py) and [crypto_manager.py](crypto_manager.py).
-2. Add a dependency file and setup instructions.
-3. Separate Windows-specific code from the core ML logic.
-4. Wire logging and UI output into the live inference loop.
-5. Add tests for telemetry preprocessing, tier selection, and crypto state transitions.
+![Adaptive-OS Security State Machine](report_diagrams/03_state_machine.png)
+
+### Training Pipeline
+
+![Adaptive-OS Training Pipeline](report_diagrams/04_training_pipeline.png)
+
+## 7. Performance Analysis / Discussion
+
+The project performs well as a prototype because it connects telemetry, sequence modeling, and adaptive security actions in a single loop. The LSTM is a reasonable choice because it can model temporal behavior, which is important for detecting suspicious changes over time.
+
+The most useful strength of the system is the closed loop between prediction and action. The model does not only generate a score; that score directly affects the system state. This makes the project more meaningful than a passive classification demo.
+
+However, there are several limitations.
+
+- The project is strongly tied to Windows-specific behavior in [telemetry/collector.py](telemetry/collector.py) and [wallpaper_manager.py](wallpaper_manager.py).
+- The dataset labels are heuristic rather than ground truth.
+- There is little separation between policy logic and runtime logic in [inference.py](inference.py).
+- The crypto/authentication path contains a symbol mismatch in [auth_manager.py](auth_manager.py).
+- There is no dedicated test suite or dependency file.
+
+So the performance is acceptable for demonstration purposes, but not yet strong enough for production deployment.
+
+## 8. Conclusion
+
+Adaptive-OS is a promising adaptive-security prototype that combines deep learning, telemetry analysis, and encrypted folder protection. Its biggest value is the design idea: the system reacts to user context rather than applying a fixed policy.
+
+At the same time, the project still has important implementation gaps. The current version needs better portability, cleaner integration, stronger error handling, and more rigorous evaluation before it can be considered production-ready.
+
+Overall, the project is best described as a solid proof of concept with a clear research direction and visible security behavior.
+
+## Appendix: Source Code
+
+The main source files used in this project are:
+
+- [train.py](train.py)
+- [inference.py](inference.py)
+- [auth_manager.py](auth_manager.py)
+- [crypto_manager.py](crypto_manager.py)
+- [wallpaper_manager.py](wallpaper_manager.py)
+- [ui_display.py](ui_display.py)
+- [models/lstm_model.py](models/lstm_model.py)
+- [data/real_dataset.py](data/real_dataset.py)
+- [data/generate_data.py](data/generate_data.py)
+- [telemetry/collector.py](telemetry/collector.py)
+- [telemetry/preprocess.py](telemetry/preprocess.py)
+- [telemetry/logger.py](telemetry/logger.py)
+
+The report diagrams were generated using [make_report_diagrams.py](make_report_diagrams.py), and the output images are stored in [report_diagrams](report_diagrams).
