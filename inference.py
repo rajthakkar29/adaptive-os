@@ -24,7 +24,6 @@ def z_score(value, mean, std):
     return (value - mean) / std
 
 
-# ---------------- MODEL ----------------
 model = ContextLSTM(INPUT_SIZE, 32, 3)
 model.load_state_dict(torch.load("context_model.pth"))
 model.eval()
@@ -33,7 +32,6 @@ buffer = []
 prev_risk = 0.3
 current_tier = None
 
-# 🔐 SECURITY STATE
 is_locked = False
 last_prompt_time = 0
 PROMPT_INTERVAL = 15
@@ -63,25 +61,14 @@ def adaptive_behavior(risk, data):
     t = data["typing_speed"]
     c = data["click_rate"]
 
-    # typing z-score
-    t_z = z_score(
-        t,
-        BASELINE["typing"]["mean"],
-        BASELINE["typing"]["std"]
-    )
+    t_z = z_score(t, BASELINE["typing"]["mean"], BASELINE["typing"]["std"])
 
-    # click z-score (safe handling)
     click_std = BASELINE["clicks"]["std"]
     if click_std < 0.01:
         c_z = 0
     else:
-        c_z = z_score(
-            c,
-            BASELINE["clicks"]["mean"],
-            click_std
-        )
+        c_z = z_score(c, BASELINE["clicks"]["mean"], click_std)
 
-    # balanced anomaly
     anomaly = abs(t_z) * 0.9 + abs(c_z) * 0.5
 
     if anomaly > 3.5:
@@ -91,12 +78,12 @@ def adaptive_behavior(risk, data):
     elif anomaly > 1.5:
         risk += 0.1
     else:
-        risk -= 0.15   # 🔥 stronger decay
+        risk -= 0.15
 
     return max(0.0, min(1.0, risk))
 
 
-# ---------------- MODE EFFECT ----------------
+# ---------------- MODE ----------------
 def mode_adjustment(risk, mode):
 
     if mode == "Dev":
@@ -126,7 +113,6 @@ def network_adjustment(risk, network):
 update_wallpaper("Green")
 
 
-# ---------------- MAIN LOOP ----------------
 while True:
 
     data = collect_telemetry()
@@ -146,10 +132,8 @@ while True:
 
         risk = r.item()
 
-        # 🔥 adaptive behavior
         risk = adaptive_behavior(risk, data)
 
-        # 🔥 FAST RECOVERY (critical fix)
         if data["typing_speed"] < 0.5 and data["click_rate"] < 0.5:
             risk *= 0.7
 
@@ -160,11 +144,10 @@ while True:
 
         risk = max(0.0, min(1.0, risk))
 
-        # smoothing
         final = 0.4 * prev_risk + 0.6 * risk
         prev_risk = final
 
-        # ---------------- TIER LOGIC ----------------
+        # ---------------- TIER ----------------
         if final > 0.5:
             red_counter += 1
         else:
@@ -182,17 +165,11 @@ while True:
         else:
             tier = "Yellow"
 
-        # ---------------- WALLPAPER + LOCK ----------------
-        if tier != current_tier:
-            current_tier = tier
+        # ---------------- SECURITY (FIXED) ----------------
+        if tier == "Red" and not is_locked:
+            is_locked = True
+            lock_folder()
 
-            if tier == "Red":
-                lock_folder()
-                update_wallpaper("Red")
-            else:
-                update_wallpaper(tier)
-
-        # ---------------- SECURITY ----------------
         if is_locked:
 
             tier = "Red"
@@ -206,11 +183,19 @@ while True:
                     is_locked = False
                     unlock_hold_until = time.time() + HOLD_DURATION
                     red_counter = 0
+                else:
+                    is_locked = True
 
-        elif tier == "Red":
-            is_locked = True
+        # ---------------- WALLPAPER (FIXED) ----------------
+        if is_locked:
+            if current_tier != "Red":
+                current_tier = "Red"
+                update_wallpaper("Red")
+        else:
+            if tier != current_tier:
+                current_tier = tier
+                update_wallpaper(tier)
 
-        # ---------------- OUTPUT ----------------
         print(
             f"Risk: {final:.3f} | Tier: {tier} | "
             f"Mode: {mode} | Net: {data['network']} | "
