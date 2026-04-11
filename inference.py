@@ -1,6 +1,7 @@
 import torch
 import time
 import numpy as np
+import json
 
 from models.lstm_model import ContextLSTM
 from telemetry.collector import collect_telemetry
@@ -9,9 +10,19 @@ from wallpaper_manager import update_wallpaper
 from crypto_manager import lock_folder, red_tier_unlock
 
 INPUT_SIZE = 14
-SEQ = 10
+SEQ = 20
 
 TRUSTED_NETWORKS = ["VITC-HOS2-4", "Raj's S25"]
+
+# ---------------- LOAD BASELINE ----------------
+with open("data/baseline.json") as f:
+    BASELINE = json.load(f)
+
+
+def z_score(value, mean, std):
+    std = max(std, 1.0)
+    return (value - mean) / std
+
 
 model = ContextLSTM(INPUT_SIZE, 32, 3)
 model.load_state_dict(torch.load("context_model.pth"))
@@ -21,13 +32,15 @@ buffer = []
 prev_risk = 0.3
 current_tier = None
 
-# 🔐 SECURITY STATE
 is_locked = False
 last_prompt_time = 0
-PROMPT_INTERVAL = 10
+PROMPT_INTERVAL = 15
 
 unlock_hold_until = 0
-HOLD_DURATION = 8
+HOLD_DURATION = 10
+
+red_counter = 0
+RED_THRESHOLD = 3
 
 
 # ---------------- MODE ----------------
@@ -42,35 +55,45 @@ def get_mode(app):
         return "Idle"
 
 
-# ---------------- BEHAVIOR ----------------
-def behavior_adjustment(risk, typing, clicks):
+# ---------------- ADAPTIVE BEHAVIOR ----------------
+def adaptive_behavior(risk, data):
 
-    if typing < 0.5 and clicks < 0.5:
+    t = data["typing_speed"]
+    c = data["click_rate"]
+
+    t_z = z_score(t, BASELINE["typing"]["mean"], BASELINE["typing"]["std"])
+
+    click_std = BASELINE["clicks"]["std"]
+    if click_std < 0.01:
+        c_z = 0
+    else:
+        c_z = z_score(c, BASELINE["clicks"]["mean"], click_std)
+
+    anomaly = abs(t_z) * 0.9 + abs(c_z) * 0.5
+
+    if anomaly > 3.5:
+        risk += 0.4
+    elif anomaly > 2.5:
+        risk += 0.2
+    elif anomaly > 1.5:
+        risk += 0.1
+    else:
         risk -= 0.15
 
-    elif typing < 2 and clicks < 2:
-        risk -= 0.05
-
-    elif typing > 8 or clicks > 10:
-        risk += 0.35
-
-    elif typing > 5 or clicks > 6:
-        risk += 0.2
-
-    return risk
+    return max(0.0, min(1.0, risk))
 
 
 # ---------------- MODE ----------------
 def mode_adjustment(risk, mode):
 
     if mode == "Dev":
-        risk -= 0.15
+        risk -= 0.1
     elif mode == "Browsing":
         risk += 0.05
     elif mode == "Gaming":
-        risk += 0.12
+        risk += 0.1
     elif mode == "Idle":
-        risk -= 0.10
+        risk -= 0.03
 
     return risk
 
@@ -79,9 +102,9 @@ def mode_adjustment(risk, mode):
 def network_adjustment(risk, network):
 
     if network and network not in TRUSTED_NETWORKS:
-        risk += 0.15
+        risk += 0.1
     else:
-        risk -= 0.05
+        risk -= 0.02
 
     return risk
 
@@ -107,16 +130,12 @@ while True:
         with torch.no_grad():
             _, r = model(inp)
 
-        base_risk = r.item()
+        risk = r.item()
 
-        # pipeline
-        risk = base_risk
+        risk = adaptive_behavior(risk, data)
 
-        risk = behavior_adjustment(
-            risk,
-            data["typing_speed"],
-            data["click_rate"]
-        )
+        if data["typing_speed"] < 0.5 and data["click_rate"] < 0.5:
+            risk *= 0.7
 
         mode = get_mode(data["active_app"])
         risk = mode_adjustment(risk, mode)
@@ -125,28 +144,35 @@ while True:
 
         risk = max(0.0, min(1.0, risk))
 
-        final = 0.5 * prev_risk + 0.5 * risk
+        final = 0.4 * prev_risk + 0.6 * risk
         prev_risk = final
 
         # ---------------- TIER ----------------
+        if final > 0.5:
+            red_counter += 1
+        else:
+            red_counter = 0
+
         if time.time() < unlock_hold_until:
             tier = "Yellow"
-        else:
-            if final < 0.35:
-                tier = "Green"
-            elif final < 0.5:
-                tier = "Yellow"
-            else:
-                tier = "Red"
 
-        # ---------------- SECURITY (STATE BASED) ----------------
+        elif red_counter >= RED_THRESHOLD:
+            tier = "Red"
+
+        elif final < 0.35:
+            tier = "Green"
+
+        else:
+            tier = "Yellow"
+
+        # ---------------- SECURITY (FIXED) ----------------
         if tier == "Red" and not is_locked:
             is_locked = True
             lock_folder()
 
         if is_locked:
 
-            tier = "Red"  # force
+            tier = "Red"
 
             if time.time() - last_prompt_time > PROMPT_INTERVAL:
 
@@ -156,11 +182,19 @@ while True:
                 if success:
                     is_locked = False
                     unlock_hold_until = time.time() + HOLD_DURATION
+                    red_counter = 0
+                else:
+                    is_locked = True
 
-        # ---------------- WALLPAPER ----------------
-        if tier != current_tier:
-            current_tier = tier
-            update_wallpaper(tier)
+        # ---------------- WALLPAPER (FIXED) ----------------
+        if is_locked:
+            if current_tier != "Red":
+                current_tier = "Red"
+                update_wallpaper("Red")
+        else:
+            if tier != current_tier:
+                current_tier = tier
+                update_wallpaper(tier)
 
         print(
             f"Risk: {final:.3f} | Tier: {tier} | "
