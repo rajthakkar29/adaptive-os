@@ -2,8 +2,8 @@ venv/
 __pycache__/
 *.pyc
 secure_folder/
-
 secret.key
 master.hash
 telemetry_logs.json
+data/baseline.json
 context_model.pth
