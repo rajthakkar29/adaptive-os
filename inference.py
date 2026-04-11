@@ -1,6 +1,7 @@
 import torch
 import time
 import numpy as np
+import json
 
 from models.lstm_model import ContextLSTM
 from telemetry.collector import collect_telemetry
@@ -13,6 +14,17 @@ SEQ = 20
 
 TRUSTED_NETWORKS = ["VITC-HOS2-4", "Raj's S25"]
 
+# ---------------- LOAD BASELINE ----------------
+with open("data/baseline.json") as f:
+    BASELINE = json.load(f)
+
+
+def z_score(value, mean, std):
+    std = max(std, 1.0)
+    return (value - mean) / std
+
+
+# ---------------- MODEL ----------------
 model = ContextLSTM(INPUT_SIZE, 32, 3)
 model.load_state_dict(torch.load("context_model.pth"))
 model.eval()
@@ -21,7 +33,7 @@ buffer = []
 prev_risk = 0.3
 current_tier = None
 
-# SECURITY STATE
+# 🔐 SECURITY STATE
 is_locked = False
 last_prompt_time = 0
 PROMPT_INTERVAL = 15
@@ -29,7 +41,6 @@ PROMPT_INTERVAL = 15
 unlock_hold_until = 0
 HOLD_DURATION = 10
 
-#  stability control
 red_counter = 0
 RED_THRESHOLD = 3
 
@@ -46,43 +57,46 @@ def get_mode(app):
         return "Idle"
 
 
-# ---------------- BEHAVIOR ----------------
-def behavior_adjustment(risk, typing, clicks):
+# ---------------- ADAPTIVE BEHAVIOR ----------------
+def adaptive_behavior(risk, data):
 
-    #  suspicious very low irregular typing
-    if 0 < typing < 0.3 and clicks < 0.2:
-        risk += 0.10
+    t = data["typing_speed"]
+    c = data["click_rate"]
 
-    #  idle
-    elif typing < 0.5 and clicks < 0.5:
+    t_z = z_score(t, BASELINE["typing"]["mean"], BASELINE["typing"]["std"])
+
+    # 🔥 CLICK FIX
+    click_std = BASELINE["clicks"]["std"]
+    if click_std < 0.01:
+        c_z = 0
+    else:
+        c_z = z_score(c, BASELINE["clicks"]["mean"], click_std)
+
+    anomaly = abs(t_z) * 1.5 + abs(c_z)
+
+    if anomaly > 4:
+        risk += 0.5
+    elif anomaly > 2.5:
+        risk += 0.3
+    elif anomaly > 1.5:
+        risk += 0.15
+    else:
         risk -= 0.05
-
-    #  normal
-    elif typing < 3 and clicks < 2:
-        pass
-
-    #  abnormal
-    elif typing > 5 or clicks > 6:
-        risk += 0.25
-
-    #  extreme
-    if typing > 12 or clicks > 10:
-        risk += 0.35
 
     return risk
 
 
-# ---------------- MODE ----------------
+# ---------------- MODE EFFECT ----------------
 def mode_adjustment(risk, mode):
 
     if mode == "Dev":
-        risk -= 0.12
+        risk -= 0.1
     elif mode == "Browsing":
         risk += 0.05
     elif mode == "Gaming":
-        risk += 0.10
+        risk += 0.1
     elif mode == "Idle":
-        risk -= 0.04
+        risk -= 0.03
 
     return risk
 
@@ -91,7 +105,7 @@ def mode_adjustment(risk, mode):
 def network_adjustment(risk, network):
 
     if network and network not in TRUSTED_NETWORKS:
-        risk += 0.12
+        risk += 0.1
     else:
         risk -= 0.02
 
@@ -102,6 +116,7 @@ def network_adjustment(risk, network):
 update_wallpaper("Green")
 
 
+# ---------------- MAIN LOOP ----------------
 while True:
 
     data = collect_telemetry()
@@ -119,16 +134,10 @@ while True:
         with torch.no_grad():
             _, r = model(inp)
 
-        base_risk = r.item()
+        risk = r.item()
 
-        # ---------------- PIPELINE ----------------
-        risk = base_risk
-
-        risk = behavior_adjustment(
-            risk,
-            data["typing_speed"],
-            data["click_rate"]
-        )
+        # 🔥 PIPELINE
+        risk = adaptive_behavior(risk, data)
 
         mode = get_mode(data["active_app"])
         risk = mode_adjustment(risk, mode)
@@ -137,11 +146,11 @@ while True:
 
         risk = max(0.0, min(1.0, risk))
 
-        #  smoother but responsive
+        # 🔥 SMOOTHING
         final = 0.4 * prev_risk + 0.6 * risk
         prev_risk = final
 
-        # ---------------- TIER ----------------
+        # ---------------- TIER LOGIC ----------------
         if final > 0.5:
             red_counter += 1
         else:
@@ -159,16 +168,17 @@ while True:
         else:
             tier = "Yellow"
 
-        # ---------------- WALLPAPER FIRST ----------------
+        # ---------------- WALLPAPER + LOCK ----------------
         if tier != current_tier:
             current_tier = tier
-            update_wallpaper(tier)
+
+            if tier == "Red":
+                lock_folder()
+                update_wallpaper("Red")
+            else:
+                update_wallpaper(tier)
 
         # ---------------- SECURITY ----------------
-        if tier == "Red" and not is_locked:
-            is_locked = True
-            lock_folder()
-
         if is_locked:
 
             tier = "Red"
@@ -183,6 +193,10 @@ while True:
                     unlock_hold_until = time.time() + HOLD_DURATION
                     red_counter = 0
 
+        elif tier == "Red":
+            is_locked = True
+
+        # ---------------- OUTPUT ----------------
         print(
             f"Risk: {final:.3f} | Tier: {tier} | "
             f"Mode: {mode} | Net: {data['network']} | "
