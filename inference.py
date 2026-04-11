@@ -63,27 +63,37 @@ def adaptive_behavior(risk, data):
     t = data["typing_speed"]
     c = data["click_rate"]
 
-    t_z = z_score(t, BASELINE["typing"]["mean"], BASELINE["typing"]["std"])
+    # typing z-score
+    t_z = z_score(
+        t,
+        BASELINE["typing"]["mean"],
+        BASELINE["typing"]["std"]
+    )
 
-    # 🔥 CLICK FIX
+    # click z-score (safe handling)
     click_std = BASELINE["clicks"]["std"]
     if click_std < 0.01:
         c_z = 0
     else:
-        c_z = z_score(c, BASELINE["clicks"]["mean"], click_std)
+        c_z = z_score(
+            c,
+            BASELINE["clicks"]["mean"],
+            click_std
+        )
 
-    anomaly = abs(t_z) * 1.5 + abs(c_z)
+    # balanced anomaly
+    anomaly = abs(t_z) * 0.9 + abs(c_z) * 0.5
 
-    if anomaly > 4:
-        risk += 0.5
+    if anomaly > 3.5:
+        risk += 0.4
     elif anomaly > 2.5:
-        risk += 0.3
+        risk += 0.2
     elif anomaly > 1.5:
-        risk += 0.15
+        risk += 0.1
     else:
-        risk -= 0.05
+        risk -= 0.15   # 🔥 stronger decay
 
-    return risk
+    return max(0.0, min(1.0, risk))
 
 
 # ---------------- MODE EFFECT ----------------
@@ -136,8 +146,12 @@ while True:
 
         risk = r.item()
 
-        # 🔥 PIPELINE
+        # 🔥 adaptive behavior
         risk = adaptive_behavior(risk, data)
+
+        # 🔥 FAST RECOVERY (critical fix)
+        if data["typing_speed"] < 0.5 and data["click_rate"] < 0.5:
+            risk *= 0.7
 
         mode = get_mode(data["active_app"])
         risk = mode_adjustment(risk, mode)
@@ -146,7 +160,7 @@ while True:
 
         risk = max(0.0, min(1.0, risk))
 
-        # 🔥 SMOOTHING
+        # smoothing
         final = 0.4 * prev_risk + 0.6 * risk
         prev_risk = final
 
