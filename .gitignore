@@ -7,3 +7,4 @@ secret.key
 master.hash
 telemetry_logs.json
 context_model.pth
+*.tex
