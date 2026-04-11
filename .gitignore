@@ -7,3 +7,4 @@ master.hash
 telemetry_logs.json
 data/baseline.json
 context_model.pth
+*.tex
