@@ -11,17 +11,11 @@ click_count = 0
 last_time = time.time()
 
 
-# -------------------------
-# Keyboard tracking
-# -------------------------
 def on_press(key):
     global key_count
     key_count += 1
 
 
-# -------------------------
-# Mouse tracking
-# -------------------------
 def on_click(x, y, button, pressed):
     global click_count
     if pressed:
@@ -36,9 +30,6 @@ keyboard_listener.start()
 mouse_listener.start()
 
 
-# -------------------------
-# System telemetry
-# -------------------------
 def get_cpu_usage():
     return psutil.cpu_percent(interval=0.5)
 
@@ -78,9 +69,6 @@ def get_network_name():
     return "Unknown"
 
 
-# -------------------------
-# Behavior calculation
-# -------------------------
 def get_behavior_metrics():
     global key_count, click_count, last_time
 
@@ -101,9 +89,6 @@ def get_behavior_metrics():
     return typing_speed, click_rate
 
 
-# -------------------------
-# Main collector
-# -------------------------
 def collect_telemetry():
     typing_speed, click_rate = get_behavior_metrics()
 

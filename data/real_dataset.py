@@ -47,7 +47,7 @@ def generate_real_dataset():
 
             X.append(sequence.copy())
 
-            # -------- CONTEXT --------
+            
             app = data["active_app"]
 
             if app == "Code.exe":
@@ -59,7 +59,7 @@ def generate_real_dataset():
             else:
                 y_context.append(0)
 
-            # -------- ADAPTIVE RISK LABEL --------
+         
             t = data.get("typing_speed", 0)
             c = data.get("click_rate", 0)
 
@@ -73,7 +73,7 @@ def generate_real_dataset():
 
             anomaly = abs(t_z) * 1.5 + abs(c_z)
 
-            # 🔥 adaptive labeling
+        
             if anomaly > 4:
                 y_risk.append([1.0])
             elif anomaly > 2.5:

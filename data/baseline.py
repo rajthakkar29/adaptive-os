@@ -14,7 +14,6 @@ def load_logs():
         return json.load(f)
 
 
-# 🔥 NEW: remove outliers using IQR
 def remove_outliers(values):
     values = np.array(values)
 
@@ -69,7 +68,7 @@ def generate_baseline():
     with open(BASELINE_FILE, "w") as f:
         json.dump(baseline, f, indent=4)
 
-    print("\n✅ Robust baseline created:")
+    print("\n Robust baseline created:")
     print(json.dumps(baseline, indent=4))
 
 

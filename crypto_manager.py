@@ -9,7 +9,7 @@ PASSWORD_FILE = "master.hash"
 TARGET_FOLDER = "secure_folder"
 
 
-# ---------------- PASSWORD UI ----------------
+# password ui
 def get_password_ui(prompt_text):
 
     root = tk.Tk()
@@ -36,7 +36,7 @@ def get_password_ui(prompt_text):
     return password
 
 
-# ---------------- SET PASSWORD ----------------
+# set password
 def set_master_password():
 
     password = get_password_ui("Set Master Password:")
@@ -53,7 +53,7 @@ def set_master_password():
     print("Master password set.")
 
 
-# ---------------- VERIFY PASSWORD ----------------
+# verify password
 def verify_password():
 
     if not os.path.exists(PASSWORD_FILE):
@@ -72,7 +72,7 @@ def verify_password():
     return hashed_input == stored_hash
 
 
-# ---------------- KEY MANAGEMENT ----------------
+# key management
 def generate_key():
     key = Fernet.generate_key()
     with open(KEY_FILE, "wb") as f:
@@ -85,7 +85,7 @@ def load_key():
     return open(KEY_FILE, "rb").read()
 
 
-# ---------------- ENCRYPT / DECRYPT ----------------
+# encrypt/decrypt
 def encrypt_file(file_path, fernet):
 
     with open(file_path, "rb") as f:
@@ -112,7 +112,7 @@ def decrypt_file(file_path, fernet):
         pass
 
 
-# ---------------- LOCK FOLDER ----------------
+# lock folder
 def lock_folder():
 
     key = load_key()
@@ -128,7 +128,7 @@ def lock_folder():
     print("Folder Locked")
 
 
-# ---------------- UNLOCK FOLDER ----------------
+# unlock folder
 def unlock_folder():
 
     key = load_key()
@@ -144,7 +144,7 @@ def unlock_folder():
     print("Folder Unlocked")
 
 
-# ---------------- CHECK LOCK STATE ----------------
+# check lost state
 def is_folder_unlocked():
 
     try:
@@ -155,7 +155,7 @@ def is_folder_unlocked():
             with open(file_path, "rb") as f:
                 data = f.read(50)
 
-            if b"gAAAA" in data:  # Fernet signature
+            if b"gAAAA" in data: 
                 return False
 
         return True
@@ -164,7 +164,6 @@ def is_folder_unlocked():
         return False
 
 
-# ---------------- RED TIER UNLOCK ----------------
 def red_tier_unlock():
 
     print("High Risk Detected")

@@ -14,7 +14,7 @@ SEQ = 20
 
 TRUSTED_NETWORKS = ["VITC-HOS2-4", "Raj's S25"]
 
-# ---------------- LOAD BASELINE ----------------
+# Load baseline
 with open("data/baseline.json") as f:
     BASELINE = json.load(f)
 
@@ -43,7 +43,7 @@ red_counter = 0
 RED_THRESHOLD = 3
 
 
-# ---------------- MODE ----------------
+# Mode
 def get_mode(app):
     if app == "Code.exe":
         return "Dev"
@@ -55,7 +55,7 @@ def get_mode(app):
         return "Idle"
 
 
-# ---------------- ADAPTIVE BEHAVIOR ----------------
+# adaptive behaviour
 def adaptive_behavior(risk, data):
 
     t = data["typing_speed"]
@@ -83,7 +83,7 @@ def adaptive_behavior(risk, data):
     return max(0.0, min(1.0, risk))
 
 
-# ---------------- MODE ----------------
+#mode
 def mode_adjustment(risk, mode):
 
     if mode == "Dev":
@@ -98,7 +98,7 @@ def mode_adjustment(risk, mode):
     return risk
 
 
-# ---------------- NETWORK ----------------
+# network
 def network_adjustment(risk, network):
 
     if network and network not in TRUSTED_NETWORKS:
@@ -109,7 +109,6 @@ def network_adjustment(risk, network):
     return risk
 
 
-# ---------------- INIT ----------------
 update_wallpaper("Green")
 
 
@@ -147,7 +146,7 @@ while True:
         final = 0.4 * prev_risk + 0.6 * risk
         prev_risk = final
 
-        # ---------------- TIER ----------------
+        # tier
         if final > 0.5:
             red_counter += 1
         else:
@@ -165,7 +164,7 @@ while True:
         else:
             tier = "Yellow"
 
-        # ---------------- SECURITY (FIXED) ----------------
+        # security
         if tier == "Red" and not is_locked:
             is_locked = True
             lock_folder()
@@ -186,7 +185,7 @@ while True:
                 else:
                     is_locked = True
 
-        # ---------------- WALLPAPER (FIXED) ----------------
+        # wallpaper
         if is_locked:
             if current_tier != "Red":
                 current_tier = "Red"
