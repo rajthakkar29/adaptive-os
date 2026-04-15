@@ -9,7 +9,6 @@ PASSWORD_FILE = "master.hash"
 TARGET_FOLDER = "secure_folder"
 
 
-# ---------------- UI INPUT ----------------
 def get_password_input(prompt):
 
     root = tk.Tk()
@@ -27,7 +26,6 @@ def get_password_input(prompt):
     return password
 
 
-# ---------------- PASSWORD ----------------
 def set_master_password():
 
     password = get_password_input("Set master password:")
@@ -59,7 +57,6 @@ def verify_password():
     return hashed_input == stored_hash
 
 
-# ---------------- KEY ----------------
 def generate_key():
 
     key = Fernet.generate_key()
@@ -76,7 +73,6 @@ def load_key():
     return open(KEY_FILE, "rb").read()
 
 
-# ---------------- ENCRYPTION ----------------
 def encrypt_file(file_path, fernet):
 
     with open(file_path, "rb") as f:
@@ -98,11 +94,11 @@ def decrypt_file(file_path, fernet):
 
         with open(file_path, "wb") as f:
             f.write(decrypted)
+    # Ignore files that are not decryptable with the current key.
     except:
         pass
 
 
-# ---------------- FOLDER ----------------
 def lock_folder():
 
     key = load_key()
@@ -133,7 +129,6 @@ def unlock_folder():
     print("Folder Unlocked")
 
 
-# ---------------- RED TIER ----------------
 def red_tier_unlock():
 
     if verify_password():

@@ -5,30 +5,24 @@ import datetime
 import time
 from pynput import keyboard, mouse
 
-# global counters
+# Shared counters updated by keyboard/mouse listeners.
 key_count = 0
 click_count = 0
 last_time = time.time()
 
 
-# -------------------------
-# Keyboard tracking
-# -------------------------
 def on_press(key):
     global key_count
     key_count += 1
 
 
-# -------------------------
-# Mouse tracking
-# -------------------------
 def on_click(x, y, button, pressed):
     global click_count
     if pressed:
         click_count += 1
 
 
-# start listeners (runs in background)
+# Run listeners in the background so collection can stay non-blocking.
 keyboard_listener = keyboard.Listener(on_press=on_press)
 mouse_listener = mouse.Listener(on_click=on_click)
 
@@ -36,9 +30,6 @@ keyboard_listener.start()
 mouse_listener.start()
 
 
-# -------------------------
-# System telemetry
-# -------------------------
 def get_cpu_usage():
     return psutil.cpu_percent(interval=0.5)
 
@@ -78,9 +69,6 @@ def get_network_name():
     return "Unknown"
 
 
-# -------------------------
-# Behavior calculation
-# -------------------------
 def get_behavior_metrics():
     global key_count, click_count, last_time
 
@@ -93,7 +81,7 @@ def get_behavior_metrics():
     typing_speed = key_count / duration
     click_rate = click_count / duration
 
-    # reset counters after calculation
+    # Reset counters so the next sample reflects only the new time window.
     key_count = 0
     click_count = 0
     last_time = current_time
@@ -101,9 +89,6 @@ def get_behavior_metrics():
     return typing_speed, click_rate
 
 
-# -------------------------
-# Main collector
-# -------------------------
 def collect_telemetry():
     typing_speed, click_rate = get_behavior_metrics()
 

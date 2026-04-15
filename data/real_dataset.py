@@ -47,7 +47,7 @@ def generate_real_dataset():
 
             X.append(sequence.copy())
 
-            # -------- CONTEXT --------
+            # Map active application to context class label.
             app = data["active_app"]
 
             if app == "Code.exe":
@@ -59,7 +59,7 @@ def generate_real_dataset():
             else:
                 y_context.append(0)
 
-            # -------- ADAPTIVE RISK LABEL --------
+            # Build a soft risk label from baseline-normalized anomalies.
             t = data.get("typing_speed", 0)
             c = data.get("click_rate", 0)
 

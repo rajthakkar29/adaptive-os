@@ -12,7 +12,6 @@ NUM_CLASSES = 3
 EPOCHS = 20
 LR = 0.001
 
-# ---------------- LOAD REAL DATA ----------------
 X, yc, yr = generate_real_dataset()
 
 print("Dataset shape:", X.shape)
@@ -20,7 +19,6 @@ print("Dataset shape:", X.shape)
 if len(X) == 0:
     raise ValueError("Dataset is empty. Run inference.py to collect logs first.")
 
-# ---------------- MODEL ----------------
 model = ContextLSTM(INPUT_SIZE, HIDDEN_SIZE, NUM_CLASSES)
 
 criterion_context = nn.CrossEntropyLoss()
@@ -28,7 +26,6 @@ criterion_risk = nn.MSELoss()
 
 optimizer = optim.Adam(model.parameters(), lr=LR)
 
-# ---------------- TRAIN ----------------
 for epoch in range(EPOCHS):
 
     model.train()
@@ -51,7 +48,6 @@ for epoch in range(EPOCHS):
         f"Risk: {loss_r.item():.4f}"
     )
 
-# ---------------- SAVE ----------------
 torch.save(model.state_dict(), "context_model.pth")
 
-print("\n✅ Model trained on REAL user behavior")
+print("\nModel trained on real user behavior")

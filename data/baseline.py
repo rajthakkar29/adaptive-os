@@ -14,7 +14,6 @@ def load_logs():
         return json.load(f)
 
 
-# 🔥 NEW: remove outliers using IQR
 def remove_outliers(values):
     values = np.array(values)
 
@@ -32,7 +31,8 @@ def remove_outliers(values):
 
 
 def compute_stats(values):
-    values = remove_outliers(values)   # 🔥 KEY CHANGE
+    # Reduce sensitivity to extreme spikes before computing baseline stats.
+    values = remove_outliers(values)
 
     return {
         "mean": float(np.mean(values)),
@@ -47,7 +47,7 @@ def generate_baseline():
     typing = [x.get("typing_speed", 0) for x in logs]
     clicks = [x.get("click_rate", 0) for x in logs]
 
-    # app switching
+    # Count cumulative app switches to capture context-changing behavior.
     switches = []
     prev = None
     count = 0
@@ -69,7 +69,7 @@ def generate_baseline():
     with open(BASELINE_FILE, "w") as f:
         json.dump(baseline, f, indent=4)
 
-    print("\n✅ Robust baseline created:")
+    print("\nRobust baseline created:")
     print(json.dumps(baseline, indent=4))
 
 

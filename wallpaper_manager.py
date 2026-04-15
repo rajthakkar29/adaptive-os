@@ -1,7 +1,7 @@
 import ctypes
 import os
 
-# paths to wallpapers
+# File paths for tier-specific wallpapers.
 GREEN_WALLPAPER = "wallpapers/green.jpg"
 YELLOW_WALLPAPER = "wallpapers/yellow.jpg"
 RED_WALLPAPER = "wallpapers/red.jpg"
