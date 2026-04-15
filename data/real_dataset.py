@@ -73,7 +73,6 @@ def generate_real_dataset():
 
             anomaly = abs(t_z) * 1.5 + abs(c_z)
 
-            # 🔥 adaptive labeling
             if anomaly > 4:
                 y_risk.append([1.0])
             elif anomaly > 2.5:
