@@ -564,6 +564,3 @@ AdaptiveOS is a hybrid AI-based contextual behavioral security framework that co
 Or in simpler words:
 
 It watches how you use your computer and gets suspicious when things start feeling weird.
-
-```
-```
