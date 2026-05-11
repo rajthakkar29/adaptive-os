@@ -1,0 +1,11 @@
+{
+    "trusted_networks": [
+        "YourWifiName"
+    ],
+
+    "red_threshold": 3,
+
+    "prompt_interval": 15,
+
+    "sequence_length": 20
+}
