@@ -1,4 +1,3 @@
-````md id="4e0jlwm"
 # AdaptiveOS — Context-Aware Behavioral Security System
 
 ## Overview
